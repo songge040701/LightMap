@@ -31,8 +31,11 @@ public class LightMap<K,V> implements Map<K,V> {
     // value的数据长度
     private int valueLength;
 
-    // node节点长度（key + value + 2[key长度标识，value长度标识]）
+    // node节点长度（key + value + 2[key长度标识，value长度标识] + 4[hashCode] + 4[下一个节点位置]）
     private int nodeLength;
+
+    // 寻找节点跳跃步长
+    private int step = 5;
 
     /**
      * 构造方法
@@ -43,7 +46,7 @@ public class LightMap<K,V> implements Map<K,V> {
 
         this.keyLength = keyLength;
         this.valueLength = valueLength;
-        this.nodeLength = this.keyLength + this.valueLength + 2;
+        this.nodeLength = this.keyLength + this.valueLength + 2 + 4 + 4;
         nodeArray = new byte[this.maxSize * nodeLength];
 
     }
@@ -59,7 +62,7 @@ public class LightMap<K,V> implements Map<K,V> {
         this.maxSize = maxSize;
         this.keyLength = keyLength;
         this.valueLength = valueLength;
-        this.nodeLength = this.keyLength + this.valueLength + 2;
+        this.nodeLength = this.keyLength + this.valueLength + 2 + 4 + 4;
         nodeArray = new byte[this.maxSize * nodeLength];
 
     }
@@ -77,7 +80,7 @@ public class LightMap<K,V> implements Map<K,V> {
         this.capacity = capacity;
         this.keyLength = keyLength;
         this.valueLength = valueLength;
-        this.nodeLength = this.keyLength + this.valueLength + 2;
+        this.nodeLength = this.keyLength + this.valueLength + 2 + 4 + 4;
         nodeArray = new byte[this.maxSize * nodeLength];
     }
 
@@ -130,6 +133,8 @@ public class LightMap<K,V> implements Map<K,V> {
      */
     private boolean putTargetMap(byte[] targetMap, byte[] key, byte[] value, int targetSize) {
 
+        int hashCode = Arrays.hashCode(key);
+
         // 获取数组中的位置
         int index = Arrays.hashCode(key)%targetSize;
 
@@ -138,10 +143,13 @@ public class LightMap<K,V> implements Map<K,V> {
             index = ~index;
         }
 
-        // index阶梯递增寻找可放置的位置
-        for(; index + 10 < targetSize - 1; index = index + 10) {
+        // index处于数组后部时，往前跳跃寻找节点
+        if(index > targetSize/2) {
+            step = - step;
+        }
 
-            if(targetMap[index * nodeLength] == 0) {
+        for(;;) {
+            if (targetMap[index * nodeLength] == 0) {
 
                 // index位置为空时，设置key，value
                 targetMap[index * nodeLength] = (byte) (key.length & 0xff);
@@ -150,32 +158,118 @@ public class LightMap<K,V> implements Map<K,V> {
                 targetMap[index * nodeLength + keyLength + 1] = (byte) (value.length & 0xff);
                 System.arraycopy(value, 0, targetMap, index * nodeLength + keyLength + 2, value.length);
 
+                // 设置hashcode
+                targetMap[index * nodeLength + nodeLength - 8] = (byte) (hashCode & 0xff);
+                targetMap[index * nodeLength + nodeLength - 7] = (byte) (hashCode >> 8 & 0xff);
+                targetMap[index * nodeLength + nodeLength - 6] = (byte) (hashCode >> 16 & 0xff);
+                targetMap[index * nodeLength + nodeLength - 5] = (byte) (hashCode >> 24 & 0xff);
+
                 // 容器中元素个数+1
                 count++;
 
                 return true;
             } else {
 
-                // index位置不为空时
-                byte[] nodeKey = new byte[targetMap[index * nodeLength]];
-                System.arraycopy(targetMap, index * nodeLength + 1, nodeKey, 0, targetMap[index * nodeLength]);
+                for (;;) {
+                    // 取出容器中该位置数据的HashCode
+                    int targetHashCode = (targetMap[index * nodeLength + nodeLength - 8] & 0xff) |
+                            (targetMap[index * nodeLength + nodeLength - 7] & 0xff << 8) |
+                            (targetMap[index * nodeLength + nodeLength - 6] & 0xff << 16) |
+                            (targetMap[index * nodeLength + nodeLength - 5] & 0xff << 24);
 
-                // 判断key是否相同
-                if(Arrays.equals(nodeKey, key)) {
+                    if (targetHashCode == hashCode) {
 
-                    // 替换value
-                    targetMap[index * nodeLength + keyLength + 1] = (byte) (value.length & 0xff);
-                    System.arraycopy(value, 0, targetMap, index * nodeLength + keyLength + 2, value.length);
+                        // 取出当前key
+                        byte[] nodeKey = new byte[targetMap[index * nodeLength]];
+                        System.arraycopy(targetMap, index * nodeLength + 1, nodeKey, 0, targetMap[index * nodeLength]);
 
-                    return true;
-                }
+                        // 判断key是否相同
+                        if (Arrays.equals(nodeKey, key)) {
+
+                            // 替换value
+                            targetMap[index * nodeLength + keyLength + 1] = (byte) (value.length & 0xff);
+                            System.arraycopy(value, 0, targetMap, index * nodeLength + keyLength + 2, value.length);
+
+                            return true;
+                        } else {
+
+                            // key不相同时需要在逻辑链表中向下寻找
+                            int next = (targetMap[index * nodeLength + nodeLength - 4] & 0xff) |
+                                    (targetMap[index * nodeLength + nodeLength - 3] & 0xff << 8) |
+                                    (targetMap[index * nodeLength + nodeLength - 2] & 0xff << 16) |
+                                    (targetMap[index * nodeLength + nodeLength - 1] & 0xff << 24);
+
+                            // 初始化时byte数组中数据都为0，但数组下标0是有意义的，为了不进行特殊的初始化增加如下判断
+                            // 取出数据为0时，next为-1(标识没有进行设置)
+                            // 取出数组下标为-1时，说明已经设定了值，意义为0
+                            if (next == 0) {
+                                next = -1;
+                            } else if (next == -1) {
+                                next = 0;
+                            }
+
+                            // 不等于0时，存在下一个位置
+                            if (next != -1) {
+                                index = next;
+                            } else {
+                                int parentNodeIndex = index;
+                                for (index = index + step; index < targetSize - 1 || index >= 0; index = index + step) {
+
+                                    if (targetMap[index * nodeLength] == 0) {
+
+                                        // index位置为空时，设置key，value
+                                        targetMap[index * nodeLength] = (byte) (key.length & 0xff);
+                                        System.arraycopy(key, 0, targetMap, index * nodeLength + 1, key.length);
+
+                                        targetMap[index * nodeLength + keyLength + 1] = (byte) (value.length & 0xff);
+                                        System.arraycopy(value, 0, targetMap, index * nodeLength + keyLength + 2, value.length);
+
+                                        // 设置hashcode
+                                        targetMap[index * nodeLength + nodeLength - 8] = (byte) (hashCode & 0xff);
+                                        targetMap[index * nodeLength + nodeLength - 7] = (byte) (hashCode >> 8 & 0xff);
+                                        targetMap[index * nodeLength + nodeLength - 6] = (byte) (hashCode >> 16 & 0xff);
+                                        targetMap[index * nodeLength + nodeLength - 5] = (byte) (hashCode >> 24 & 0xff);
+
+                                        // 由于byte数组中初始数据都为0，借用-1来标注数组下标为0的元素
+                                        if (index == 0) {
+                                            index = -1;
+                                        }
+                                        // 为父节点设置next标识
+                                        targetMap[parentNodeIndex * nodeLength + nodeLength - 4] = (byte) (index & 0xff);
+                                        targetMap[parentNodeIndex * nodeLength + nodeLength - 3] = (byte) (index >> 8 & 0xff);
+                                        targetMap[parentNodeIndex * nodeLength + nodeLength - 2] = (byte) (index >> 16 & 0xff);
+                                        targetMap[parentNodeIndex * nodeLength + nodeLength - 1] = (byte) (index >> 24 & 0xff);
+
+                                        // 容器中元素个数+1
+                                        count++;
+
+                                        return true;
+                                    }
+                                }
+
+                                // 到达数组尽头都未找到元素时，返回false进行rehash
+                                System.out.println(" ---- hash collisions, key: " + new String(key));
+                                return false;
+                            }
+                        }
+                    } else {
+
+                        // 传入参数key的hashCode位置已经被占用了，只能寻找下一个位置
+                        index = index + step;
+
+                        if(index > targetSize - 1 || index < 0) {
+                            return false;
+                        }
+
+                        break;
+                    }
+                } // 无限循1
+
             }
-        }
 
-        //System.out.println(" ---- hash collisions, key: " + new String(key));
+        } // 无限循环2
 
-        // 未设置成功，返回false
-        return false;
+
     }
 
 
@@ -222,39 +316,88 @@ public class LightMap<K,V> implements Map<K,V> {
     @SuppressWarnings("unchecked")
     public V get(Object key) {
 
+
+        int hashCode = Arrays.hashCode(((String)key).getBytes());
+
         // 获取数组中的位置
-        int index = Arrays.hashCode(((String)key).getBytes())%this.maxSize;
+        int index = hashCode%this.maxSize;
 
         // jdk的hash算法可能产生负数，需要特殊处理
         if(index < 0) {
             index = ~index;
         }
 
-        // 循环递增step进行匹配
-        for(; index + 10 < maxSize - 1; index = index + 10) {
-
-            // 不存在key时，直接返回null
-            if(nodeArray[index * nodeLength] == 0) {
-                return null;
-            }
-
-            // 出去容器中的key
-            byte[] nodeKey = new byte[nodeArray[index * nodeLength]];
-            System.arraycopy(nodeArray, index * nodeLength + 1, nodeKey, 0, nodeArray[index * nodeLength]);
-
-            // 参数key与容器中的key相同判定
-            if(Arrays.equals(nodeKey, ((String)key).getBytes())) {
-
-                // 取出value
-                byte[] value = new byte[nodeArray[index * nodeLength + keyLength + 1]];
-                System.arraycopy(nodeArray, index * nodeLength + keyLength + 2, value, 0, nodeArray[index * nodeLength + keyLength + 1]);
-
-                return (V) new String(value);
-            }
+        // index处于数组后部时，往前跳跃寻找节点
+        if(index > maxSize/2) {
+            step = - step;
         }
 
-        // 容器中没有key时，返回null
-        return null;
+        for(;;) {
+            if (nodeArray[index * nodeLength] == 0) {
+                return null;
+            } else {
+
+                for (;;) {
+                    // 取出容器中该位置数据的HashCode
+                    int targetHashCode = (nodeArray[index * nodeLength + nodeLength - 8] & 0xff) |
+                            ((nodeArray[index * nodeLength + nodeLength - 7] & 0xff) << 8) |
+                            ((nodeArray[index * nodeLength + nodeLength - 6] & 0xff) << 16) |
+                            ((nodeArray[index * nodeLength + nodeLength - 5] & 0xff) << 24);
+
+                    if (targetHashCode == hashCode) {
+
+                        // 取出当前key
+                        byte[] nodeKey = new byte[nodeArray[index * nodeLength]];
+                        System.arraycopy(nodeArray, index * nodeLength + 1, nodeKey, 0, nodeArray[index * nodeLength]);
+
+                        // 判断key是否相同
+                        if (Arrays.equals(nodeKey, ((String)key).getBytes())) {
+
+                            byte[] value = new byte[nodeArray[index * nodeLength + keyLength + 1]];
+                            System.arraycopy(nodeArray, index * nodeLength + keyLength + 2, value, 0, nodeArray[index * nodeLength + keyLength + 1]);
+
+                            return (V) new String(value);
+
+                        } else {
+
+                            // key不相同时需要在逻辑链表中向下寻找
+                            int next = (nodeArray[index * nodeLength + nodeLength - 4] & 0xff) |
+                                    (nodeArray[index * nodeLength + nodeLength - 3] & 0xff << 8) |
+                                    (nodeArray[index * nodeLength + nodeLength - 2] & 0xff << 16) |
+                                    (nodeArray[index * nodeLength + nodeLength - 1] & 0xff << 24);
+
+                            // 初始化时byte数组中数据都为0，但数组下标0是有意义的，为了不进行特殊的初始化增加如下判断
+                            // 取出数据为0时，next为-1(标识没有进行设置)
+                            // 取出数组下标为-1时，说明已经设定了值，意义为0
+                            if (next == 0) {
+                                next = -1;
+                            } else if (next == -1) {
+                                next = 0;
+                            }
+
+                            // 不等于0时，存在下一个位置
+                            if (next != -1) {
+                                index = next;
+                            } else {
+                                return null;
+                            }
+                        }
+                    } else {
+
+                        // 传入参数key的hashCode位置已经被占用了，只能寻找下一个位置
+                        index = index + step;
+
+                        if(index > maxSize - 1 || index < 0) {
+                            return null;
+                        }
+
+                        break;
+                    }
+                } // 无限循1
+
+            }
+
+        } // 无限循环2
     }
 
     /**
@@ -413,7 +556,7 @@ public class LightMap<K,V> implements Map<K,V> {
     public void printFreeDataCount() {
         int count = 0;
         for(int i = 0; i < maxSize; i++) {
-            if(nodeArray[i * (this.keyLength + this.valueLength)] == 0) {
+            if(nodeArray[i * nodeLength] == 0) {
                 count++;
             }
         }

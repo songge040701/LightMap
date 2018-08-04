@@ -18,7 +18,7 @@ public class Test {
 
     public static void main(String arg[]) {
 
-        int count = 1000;
+        int count = 4000000;
 
         System.out.println("-------------------LM test start------------------");
         LightMap<String, String> lightMap = new LightMap<>(8, 13);
