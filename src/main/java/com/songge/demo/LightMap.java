@@ -17,7 +17,7 @@ public class LightMap<K,V> implements Map<K,V> {
     private byte[] nodeArray;
 
     // 扩容因子
-    private double capacity = 0.75;
+    private double capacity = 0.8;
 
     // 容器中maxSize
     private int maxSize = 16;
@@ -144,6 +144,7 @@ public class LightMap<K,V> implements Map<K,V> {
         }
 
         // index处于数组后部时，往前跳跃寻找节点
+        int step = this.step;
         if(index > targetSize/2) {
             step = - step;
         }
@@ -261,16 +262,17 @@ public class LightMap<K,V> implements Map<K,V> {
                                 }
 
                                 // 到达数组尽头都未找到元素时，返回false进行rehash
-                                System.out.println(" ---- hash collisions, key: " + new String(key));
+                                //System.out.println(" ---- hash collisions, key: " + new String(key));
                                 return false;
                             }
                         }
                     } else {
 
                         // 传入参数key的hashCode位置已经被占用了，只能寻找下一个位置
+                        // System.out.println("index === " + index + " step === " +step + " maxSize === " + targetSize);
                         index = index + step;
-
                         if(index > targetSize - 1 || index < 0) {
+                            //System.out.println(" ---- array to end");
                             return false;
                         }
 
@@ -573,7 +575,7 @@ public class LightMap<K,V> implements Map<K,V> {
                 count++;
             }
         }
-        System.out.println(" ---- 空置Node数：" + count);
+        System.out.println("  === 总共Node数：" + maxSize + "\r\n  === 空置Node数：" + count + "\r\n  === 空置率：" + count*100/maxSize + " %");
     }
 
     class LightEntry implements Entry<K,V> {
