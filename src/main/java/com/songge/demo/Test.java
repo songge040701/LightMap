@@ -1,9 +1,9 @@
 package com.songge.demo;
 
-import com.songge.demo.*;
 import net.sourceforge.sizeof.SizeOf;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * <p>
@@ -21,10 +21,10 @@ public class Test {
         int count = 4000000;
 
         System.out.println("-------------------LM test start------------------");
-        LightMap<String, String> lightMap = new LightMap<>(8, 13);
+        LightMap<String, String> lightMap = new LightMap<>(20, 20);
         long light_map_put_start = System.currentTimeMillis();
         for(int i = 0; i < count;  i++) {
-            lightMap.put(String.valueOf(i), "value" + String.valueOf(i));
+            lightMap.put(RandomString.getRandomString(20), RandomString.getRandomString(20));
         }
         long light_map_put_end = System.currentTimeMillis();
         System.out.println("LightMap put用时：" + (light_map_put_end - light_map_put_start) + " ms。");
@@ -32,7 +32,7 @@ public class Test {
 
         long light_map_get_start = System.currentTimeMillis();
         for(int i = 0; i < count;  i++) {
-            lightMap.get(String.valueOf(i));
+            lightMap.get(RandomString.getRandomString(20));
         }
         long light_map_get_end = System.currentTimeMillis();
         System.out.println("LightMap get用时：" + (light_map_get_end - light_map_get_start) + " ms。");
@@ -44,7 +44,7 @@ public class Test {
         Map<String, String> map = new HashMap<>();
         long hash_map_pu_start = System.currentTimeMillis();
         for(int i = 0; i < count;  i++) {
-            map.put(String.valueOf(i), "value" + String.valueOf(i));
+            map.put(RandomString.getRandomString(20), RandomString.getRandomString(20));
         }
         long hash_map_pu_end = System.currentTimeMillis();
         System.out.println("HashMap put用时：" + (hash_map_pu_end - hash_map_pu_start) + " ms。");
@@ -53,7 +53,7 @@ public class Test {
 
         long hash_map_get_start = System.currentTimeMillis();
         for(int i = 0; i < count;  i++) {
-            map.get(String.valueOf(i));
+            map.get(RandomString.getRandomString(20));
         }
         long hash_map_get_end = System.currentTimeMillis();
         System.out.println("HashMap get用时：" + (hash_map_get_end - hash_map_get_start) + " ms。");
