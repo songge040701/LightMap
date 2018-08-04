@@ -497,17 +497,21 @@ public class LightMap<K,V> implements Map<K,V> {
 
     @Override
     public void clear() {
-        for (int i = 0; i < this.maxSize; i++) {
-            nodeArray[i * nodeLength] = 0;
-            nodeArray[i * nodeLength + 1 + keyLength] = 0;
-        }
+        nodeArray = null;
+        maxSize = 16;
+        count = 0;
+        capacity = 0.75;
     }
 
 
     @Deprecated
     @Override
+    @SuppressWarnings("unchecked")
     public void putAll(Map<? extends K, ? extends V> m) {
-
+        Set<K> set = (Set<K>) m.keySet();
+        for (K node : set) {
+            this.put(node, m.get(node));
+        }
     }
 
     @Deprecated
@@ -542,33 +546,15 @@ public class LightMap<K,V> implements Map<K,V> {
 
     @Deprecated
     @Override
+    @SuppressWarnings("unchecked")
     public Set<Entry<K, V>> entrySet() {
         Set<Entry<K, V>> set = new HashSet<>();
         for(int i = 0; i < maxSize; i++) {
             if(nodeArray[i*nodeLength] != 0) {
                 byte[] keyByte = new byte[nodeArray[i * nodeLength]];
                 System.arraycopy(nodeArray, i * nodeLength + 1, keyByte, 0, nodeArray[i * nodeLength]);
-                Entry<K, V> entry = new Entry<K, V>() {
-                    K key;
-
-                    V value;
-
-                    @Override
-                    public K getKey() {
-                        return key;
-                    }
-
-                    @Override
-                    public V getValue() {
-                        return value;
-                    }
-
-                    @Override
-                    public V setValue(V value) {
-                        return null;
-                    }
-
-                };
+                LightEntry entry = new LightEntry();
+                entry.setKey((K)new String(keyByte));
                 entry.setValue(get(keyByte));
                 set.add(entry);
             }
@@ -580,7 +566,7 @@ public class LightMap<K,V> implements Map<K,V> {
     /**
      * 测试类，打印byte[]中控制的元素个数
      */
-    public void printFreeDataCount() {
+    void printFreeDataCount() {
         int count = 0;
         for(int i = 0; i < maxSize; i++) {
             if(nodeArray[i * nodeLength] == 0) {
@@ -590,4 +576,27 @@ public class LightMap<K,V> implements Map<K,V> {
         System.out.println(" ---- 空置Node数：" + count);
     }
 
+    class LightEntry implements Entry<K,V> {
+
+        K key;
+
+        V value;
+
+        @Override
+        public K getKey() {
+            return key;
+        }
+
+        @Override
+        public V getValue() {
+            return value;
+        }
+
+        @Override
+        public V setValue(V value) {
+            return this.value = value;
+        }
+
+        void setKey(K key) {this.key = key;}
+    }
 }
