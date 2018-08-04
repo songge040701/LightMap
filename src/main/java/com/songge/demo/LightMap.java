@@ -47,6 +47,7 @@ public class LightMap<K,V> implements Map<K,V> {
         this.keyLength = keyLength;
         this.valueLength = valueLength;
         this.nodeLength = this.keyLength + this.valueLength + 2 + 1 + 4 + 4;
+
         nodeArray = new byte[this.maxSize * nodeLength];
 
     }
@@ -63,6 +64,7 @@ public class LightMap<K,V> implements Map<K,V> {
         this.keyLength = keyLength;
         this.valueLength = valueLength;
         this.nodeLength = this.keyLength + this.valueLength + 2 + 1 + 4 + 4;
+
         nodeArray = new byte[this.maxSize * nodeLength];
 
     }
@@ -81,6 +83,7 @@ public class LightMap<K,V> implements Map<K,V> {
         this.keyLength = keyLength;
         this.valueLength = valueLength;
         this.nodeLength = this.keyLength + this.valueLength + 2 + 1 + 4 + 4;
+
         nodeArray = new byte[this.maxSize * nodeLength];
     }
 
@@ -91,10 +94,12 @@ public class LightMap<K,V> implements Map<K,V> {
      * @return null
      */
     public V put(K keyStr, V valueStr) {
+
         if(!(keyStr instanceof String)) {
             System.out.println("put失败，暂时不支 String 以外持其他数据类型。");
             return null;
         }
+
         if(!(valueStr instanceof String)) {
             System.out.println("put失败，暂时不支 String 以外持其他数据类型。");
             return null;
@@ -151,6 +156,7 @@ public class LightMap<K,V> implements Map<K,V> {
 
         // 添加寄居标识
         if(targetMap[index * nodeLength] != 0) {
+
             int targetHashCode = (targetMap[index * nodeLength + nodeLength - 8] & 0xff) |
                     (targetMap[index * nodeLength + nodeLength - 7] & 0xff << 8) |
                     (targetMap[index * nodeLength + nodeLength - 6] & 0xff << 16) |
@@ -182,9 +188,11 @@ public class LightMap<K,V> implements Map<K,V> {
                 count++;
 
                 return true;
+
             } else {
 
                 for (;;) {
+
                     // 取出容器中该位置数据的HashCode
                     int targetHashCode = (targetMap[index * nodeLength + nodeLength - 8] & 0xff) |
                             (targetMap[index * nodeLength + nodeLength - 7] & 0xff << 8) |
@@ -205,6 +213,7 @@ public class LightMap<K,V> implements Map<K,V> {
                             System.arraycopy(value, 0, targetMap, index * nodeLength + keyLength + 2, value.length);
 
                             return true;
+
                         } else {
 
                             // key不相同时需要在逻辑链表中向下寻找
@@ -258,12 +267,14 @@ public class LightMap<K,V> implements Map<K,V> {
                                         count++;
 
                                         return true;
+
                                     }
                                 }
 
                                 // 到达数组尽头都未找到元素时，返回false进行rehash
                                 //System.out.println(" ---- hash collisions, key: " + new String(key));
                                 return false;
+
                             }
                         }
                     } else {
@@ -272,18 +283,18 @@ public class LightMap<K,V> implements Map<K,V> {
                         // System.out.println("index === " + index + " step === " +step + " maxSize === " + targetSize);
                         index = index + step;
                         if(index > targetSize - 1 || index < 0) {
+
                             //System.out.println(" ---- array to end");
                             return false;
                         }
 
                         break;
                     }
-                } // 无限循1
+                } // 循环1
 
             }
 
-        } // 无限循环2
-
+        } // 循环2
 
     }
 
@@ -308,6 +319,7 @@ public class LightMap<K,V> implements Map<K,V> {
                 // 取出key/value
                 byte[] key = new byte[nodeArray[i * nodeLength]];
                 byte[] value = new byte[nodeArray[i * nodeLength + keyLength + 1]];
+
                 System.arraycopy(nodeArray, i * nodeLength + 1, key, 0, key.length);
                 System.arraycopy(nodeArray, i * nodeLength + keyLength + 2, value, 0, value.length);
 
@@ -349,11 +361,15 @@ public class LightMap<K,V> implements Map<K,V> {
         }
 
         for(;;) {
+
             if (nodeArray[index * nodeLength] == 0) {
+
                 return null;
+
             } else {
 
                 for (;;) {
+
                     // 取出容器中该位置数据的HashCode
                     int targetHashCode = (nodeArray[index * nodeLength + nodeLength - 8] & 0xff) |
                             ((nodeArray[index * nodeLength + nodeLength - 7] & 0xff) << 8) |
@@ -363,9 +379,11 @@ public class LightMap<K,V> implements Map<K,V> {
                     if (targetHashCode == hashCode) {
 
                         boolean isSameKey = true;
+
                         if (nodeArray[index * nodeLength] == keyByte.length) {
                             for(int i = 0; i < nodeArray[index * nodeLength]; i++) {
                                 if(nodeArray[index * nodeLength + 1 + i] != keyByte[i]) {
+
                                     isSameKey = false;
                                     break;
                                 }
@@ -406,6 +424,7 @@ public class LightMap<K,V> implements Map<K,V> {
                                 return null;
                             }
                         }
+
                     } else {
 
                         // 该位置真正的hashcode值并未来过时，直接返回null
@@ -436,7 +455,9 @@ public class LightMap<K,V> implements Map<K,V> {
      */
     @Override
     public boolean containsKey(Object key) {
+
         return get(key) != null;
+
     }
 
     /**
@@ -469,36 +490,129 @@ public class LightMap<K,V> implements Map<K,V> {
 
     @Override
     public int size() {
+
         return count;
+
     }
 
     @Override
     public boolean isEmpty() {
+
         return count == 0;
+
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public V remove(Object key) {
-        int index = Arrays.hashCode(((String)key).getBytes())%this.maxSize;
 
-        for(; index + 10 < maxSize - 1; index = index + 10) {
-            byte[] nodeKey = new byte[nodeArray[index * nodeLength]];
-            System.arraycopy(nodeArray, index * nodeLength + 1, nodeKey, 0, nodeArray[index * nodeLength]);
-            if(Arrays.equals(nodeKey, ((String)key).getBytes())) {
-                byte[] value = new byte[nodeArray[index * nodeLength + keyLength + 1]];
-                System.arraycopy(nodeArray, index * nodeLength + keyLength + 2, value, 0, nodeArray[index * nodeLength + keyLength + 1]);
-                nodeArray[index * nodeLength] = 0;
-                nodeArray[index * nodeLength + 1 + keyLength] = 0;
-                count--;
-                return (V) new String(value);
-            }
+        byte[] keyByte = ((String)key).getBytes();
+
+        int hashCode = Arrays.hashCode(keyByte);
+
+        // 获取数组中的位置
+        int index = hashCode%this.maxSize;
+
+        // jdk的hash算法可能产生负数，需要特殊处理
+        if(index < 0) {
+            index = ~index;
         }
-        return null;
+
+        // index处于数组后部时，往前跳跃寻找节点
+        if(index > maxSize/2) {
+            step = - step;
+        }
+
+        for(;;) {
+
+            if (nodeArray[index * nodeLength] == 0) {
+                return null;
+
+            } else {
+
+                for (;;) {
+
+                    // 取出容器中该位置数据的HashCode
+                    int targetHashCode = (nodeArray[index * nodeLength + nodeLength - 8] & 0xff) |
+                            ((nodeArray[index * nodeLength + nodeLength - 7] & 0xff) << 8) |
+                            ((nodeArray[index * nodeLength + nodeLength - 6] & 0xff) << 16) |
+                            ((nodeArray[index * nodeLength + nodeLength - 5] & 0xff) << 24);
+
+                    if (targetHashCode == hashCode) {
+
+                        boolean isSameKey = true;
+                        if (nodeArray[index * nodeLength] != keyByte.length) {
+                            isSameKey = false;
+                        } else {
+                            for(int i = 0; i < nodeArray[index * nodeLength]; i++) {
+                                if(nodeArray[index * nodeLength + 1 + i] != keyByte[i]) {
+                                    isSameKey = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // 判断key是否相同
+                        if (isSameKey) {
+
+                            byte[] value = new byte[nodeArray[index * nodeLength + keyLength + 1]];
+                            System.arraycopy(nodeArray, index * nodeLength + keyLength + 2, value, 0, nodeArray[index * nodeLength + keyLength + 1]);
+                            nodeArray[index * nodeLength] = 0;
+
+                            return (V) new String(value);
+
+                        } else {
+
+                            // key不相同时需要在逻辑链表中向下寻找
+                            int next = (nodeArray[index * nodeLength + nodeLength - 4] & 0xff) |
+                                    (nodeArray[index * nodeLength + nodeLength - 3] & 0xff << 8) |
+                                    (nodeArray[index * nodeLength + nodeLength - 2] & 0xff << 16) |
+                                    (nodeArray[index * nodeLength + nodeLength - 1] & 0xff << 24);
+
+                            // 初始化时byte数组中数据都为0，但数组下标0是有意义的，为了不进行特殊的初始化增加如下判断
+                            // 取出数据为0时，next为-1(标识没有进行设置)
+                            // 取出数组下标为-1时，说明已经设定了值，意义为0
+                            if (next == 0) {
+                                next = -1;
+                            } else if (next == -1) {
+                                next = 0;
+                            }
+
+                            // 不等于0时，存在下一个位置
+                            if (next != -1) {
+                                index = next;
+                            } else {
+                                return null;
+                            }
+                        }
+
+                    } else {
+
+                        // 该位置真正的hashcode值并未来过时，直接返回null
+                        if(nodeArray[index * nodeLength + nodeLength - 9] != 1) {
+                            return null;
+                        }
+
+                        // 传入参数key的hashCode位置已经被占用了，只能寻找下一个位置
+                        index = index + step;
+
+                        if(index > maxSize - 1 || index < 0) {
+                            return null;
+                        }
+
+                        break;
+                    }
+                } // 无限循1
+
+            }
+
+        } // 无限循环2
+
     }
 
     @Override
     public void clear() {
+
         nodeArray = null;
         maxSize = 16;
         count = 0;
@@ -510,24 +624,33 @@ public class LightMap<K,V> implements Map<K,V> {
     @Override
     @SuppressWarnings("unchecked")
     public void putAll(Map<? extends K, ? extends V> m) {
+
         Set<K> set = (Set<K>) m.keySet();
+
         for (K node : set) {
             this.put(node, m.get(node));
         }
+
     }
 
     @Deprecated
     @Override
     @SuppressWarnings("unchecked")
     public Set<K> keySet() {
+
         Set<K> set = new HashSet<>();
+
         for(int i = 0; i < maxSize; i++) {
+
             if(nodeArray[i*nodeLength] != 0) {
+
                 byte[] keyByte = new byte[nodeArray[i * nodeLength]];
                 System.arraycopy(nodeArray, i * nodeLength + 1, keyByte, 0, nodeArray[i * nodeLength]);
+
                 set.add((K)new String(keyByte));
             }
         }
+
         return set;
     }
 
@@ -535,14 +658,20 @@ public class LightMap<K,V> implements Map<K,V> {
     @Override
     @SuppressWarnings("unchecked")
     public Collection<V> values() {
+
         Set<K> set = new HashSet<>();
+
         for(int i = 0; i < maxSize; i++) {
+
             if(nodeArray[i*nodeLength + 1 + keyLength] != 0) {
+
                 byte[] valueByte = new byte[nodeArray[i * nodeLength + keyLength + 1]];
                 System.arraycopy(nodeArray, i * nodeLength + keyLength + 2, valueByte, 0, nodeArray[i * nodeLength + keyLength + 1]);
+
                 set.add((K)new String(valueByte));
             }
         }
+
         return (Collection<V>)set;
     }
 
@@ -550,17 +679,24 @@ public class LightMap<K,V> implements Map<K,V> {
     @Override
     @SuppressWarnings("unchecked")
     public Set<Entry<K, V>> entrySet() {
+
         Set<Entry<K, V>> set = new HashSet<>();
+
         for(int i = 0; i < maxSize; i++) {
+
             if(nodeArray[i*nodeLength] != 0) {
+
                 byte[] keyByte = new byte[nodeArray[i * nodeLength]];
                 System.arraycopy(nodeArray, i * nodeLength + 1, keyByte, 0, nodeArray[i * nodeLength]);
+
                 LightEntry entry = new LightEntry();
                 entry.setKey((K)new String(keyByte));
                 entry.setValue(get(keyByte));
+
                 set.add(entry);
             }
         }
+
         return set;
     }
 
@@ -569,13 +705,17 @@ public class LightMap<K,V> implements Map<K,V> {
      * 测试类，打印byte[]中控制的元素个数
      */
     void printFreeDataCount() {
+
         int count = 0;
+
         for(int i = 0; i < maxSize; i++) {
+
             if(nodeArray[i * nodeLength] == 0) {
                 count++;
             }
         }
-        System.out.println("  === 总共Node数：" + maxSize + "\r\n  === 空置Node数：" + count + "\r\n  === 空置率：" + count*100/maxSize + " %");
+
+        System.out.println("\r\n  === 总共Node数：" + maxSize + "\r\n  === 空置Node数：" + count + "\r\n  === 空置率：" + count*100/maxSize + " %");
     }
 
     class LightEntry implements Entry<K,V> {
@@ -596,9 +736,15 @@ public class LightMap<K,V> implements Map<K,V> {
 
         @Override
         public V setValue(V value) {
+
             return this.value = value;
+
         }
 
-        void setKey(K key) {this.key = key;}
+        void setKey(K key) {
+
+            this.key = key;
+
+        }
     }
 }
