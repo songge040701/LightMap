@@ -31,7 +31,7 @@ public class LightMap<K,V> implements Map<K,V> {
     // value的数据长度
     private int valueLength;
 
-    // node节点长度（key + value + 2[key长度标识，value长度标识] + 4[hashCode] + 4[下一个节点位置]）
+    // node节点长度（key + value + 2[key长度标识，value长度标识] + 寄居标识 + 4[hashCode] + 4[下一个节点位置]）
     private int nodeLength;
 
     // 寻找节点跳跃步长
@@ -46,7 +46,7 @@ public class LightMap<K,V> implements Map<K,V> {
 
         this.keyLength = keyLength;
         this.valueLength = valueLength;
-        this.nodeLength = this.keyLength + this.valueLength + 2 + 4 + 4;
+        this.nodeLength = this.keyLength + this.valueLength + 2 + 1 + 4 + 4;
         nodeArray = new byte[this.maxSize * nodeLength];
 
     }
@@ -62,7 +62,7 @@ public class LightMap<K,V> implements Map<K,V> {
         this.maxSize = maxSize;
         this.keyLength = keyLength;
         this.valueLength = valueLength;
-        this.nodeLength = this.keyLength + this.valueLength + 2 + 4 + 4;
+        this.nodeLength = this.keyLength + this.valueLength + 2 + 1 + 4 + 4;
         nodeArray = new byte[this.maxSize * nodeLength];
 
     }
@@ -80,7 +80,7 @@ public class LightMap<K,V> implements Map<K,V> {
         this.capacity = capacity;
         this.keyLength = keyLength;
         this.valueLength = valueLength;
-        this.nodeLength = this.keyLength + this.valueLength + 2 + 4 + 4;
+        this.nodeLength = this.keyLength + this.valueLength + 2 + 1 + 4 + 4;
         nodeArray = new byte[this.maxSize * nodeLength];
     }
 
@@ -146,6 +146,19 @@ public class LightMap<K,V> implements Map<K,V> {
         // index处于数组后部时，往前跳跃寻找节点
         if(index > targetSize/2) {
             step = - step;
+        }
+
+        // 添加寄居标识
+        if(targetMap[index * nodeLength] != 0) {
+            int targetHashCode = (targetMap[index * nodeLength + nodeLength - 8] & 0xff) |
+                    (targetMap[index * nodeLength + nodeLength - 7] & 0xff << 8) |
+                    (targetMap[index * nodeLength + nodeLength - 6] & 0xff << 16) |
+                    (targetMap[index * nodeLength + nodeLength - 5] & 0xff << 24);
+
+            if (targetHashCode != hashCode) {
+                // 当该位置真正的hashcode曾经来过时，讲寄居标识设置为1（初始为0）
+                targetMap[index * nodeLength + nodeLength - 9] = 1;
+            }
         }
 
         for(;;) {
@@ -316,8 +329,9 @@ public class LightMap<K,V> implements Map<K,V> {
     @SuppressWarnings("unchecked")
     public V get(Object key) {
 
+        byte[] keyByte = ((String)key).getBytes();
 
-        int hashCode = Arrays.hashCode(((String)key).getBytes());
+        int hashCode = Arrays.hashCode(keyByte);
 
         // 获取数组中的位置
         int index = hashCode%this.maxSize;
@@ -346,12 +360,20 @@ public class LightMap<K,V> implements Map<K,V> {
 
                     if (targetHashCode == hashCode) {
 
-                        // 取出当前key
-                        byte[] nodeKey = new byte[nodeArray[index * nodeLength]];
-                        System.arraycopy(nodeArray, index * nodeLength + 1, nodeKey, 0, nodeArray[index * nodeLength]);
+                        boolean isSameKey = true;
+                        if (nodeArray[index * nodeLength] == keyByte.length) {
+                            for(int i = 0; i < nodeArray[index * nodeLength]; i++) {
+                                if(nodeArray[index * nodeLength + 1 + i] != keyByte[i]) {
+                                    isSameKey = false;
+                                    break;
+                                }
+                            }
+                        } else {
+                            isSameKey =false;
+                        }
 
                         // 判断key是否相同
-                        if (Arrays.equals(nodeKey, ((String)key).getBytes())) {
+                        if (isSameKey) {
 
                             byte[] value = new byte[nodeArray[index * nodeLength + keyLength + 1]];
                             System.arraycopy(nodeArray, index * nodeLength + keyLength + 2, value, 0, nodeArray[index * nodeLength + keyLength + 1]);
@@ -383,6 +405,11 @@ public class LightMap<K,V> implements Map<K,V> {
                             }
                         }
                     } else {
+
+                        // 该位置真正的hashcode值并未来过时，直接返回null
+                        if(nodeArray[index * nodeLength + nodeLength - 9] != 1) {
+                            return null;
+                        }
 
                         // 传入参数key的hashCode位置已经被占用了，只能寻找下一个位置
                         index = index + step;
