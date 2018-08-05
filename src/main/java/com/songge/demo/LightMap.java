@@ -35,7 +35,10 @@ public class LightMap<K,V> implements Map<K,V> {
     private int nodeLength;
 
     // 寻找节点跳跃步长
-    private int step = 5;
+    private int step = 1;
+
+    // value数据类型标识（1：String 2：Integer 3：Long）
+    private int type;
 
     /**
      * 构造方法
@@ -90,18 +93,42 @@ public class LightMap<K,V> implements Map<K,V> {
     /**
      * 添加元素方法，目前只支持最常用的String类型，K/V范型方便后期扩充类型
      * @param keyStr key长度
-     * @param valueStr value长度
+     * @param value value长度
      * @return null
      */
-    public V put(K keyStr, V valueStr) {
+    public V put(K keyStr, V value) {
 
         if(!(keyStr instanceof String)) {
             System.out.println("put失败，暂时不支 String 以外持其他数据类型。");
             return null;
         }
 
-        if(!(valueStr instanceof String)) {
-            System.out.println("put失败，暂时不支 String 以外持其他数据类型。");
+        byte[] valueByte;
+
+        if(value instanceof  String) {
+            valueByte = ((String)value).getBytes();
+            type = 1;
+        } else if(value instanceof Integer) {
+            valueByte = new byte[4];
+            valueByte[0] = (byte)( (Integer) value & 0xff );
+            valueByte[1] = (byte)( (Integer) value >> 8 & 0xff );
+            valueByte[2] = (byte)( (Integer) value >> 16 & 0xff );
+            valueByte[3] = (byte)( (Integer) value >> 24 & 0xff );
+            type = 2;
+        } else if(value instanceof  Long) {
+
+            valueByte = new byte[8];
+            valueByte[0] = (byte)( (Long) value & 0xff );
+            valueByte[1] = (byte)( (Long) value >> 8 & 0xff );
+            valueByte[2] = (byte)( (Long) value >> 16 & 0xff );
+            valueByte[3] = (byte)( (Long) value >> 24 & 0xff );
+            valueByte[4] = (byte)( (Long) value >> 32 & 0xff );
+            valueByte[5] = (byte)( (Long) value >> 40 & 0xff );
+            valueByte[6] = (byte)( (Long) value >> 48 & 0xff );
+            valueByte[7] = (byte)( (Long) value >> 56 & 0xff );
+
+        } else {
+            System.out.println("put失败，暂时不支 String,Integer 以外持其他数据类型。");
             return null;
         }
 
@@ -110,7 +137,7 @@ public class LightMap<K,V> implements Map<K,V> {
             return null;
         }
 
-        if(((String) valueStr).getBytes().length > valueLength) {
+        if(valueByte.length > valueLength) {
             System.out.println("put失败，参数value长度过大" + valueLength + "。====== value: " + keyStr);
             return null;
         }
@@ -121,7 +148,7 @@ public class LightMap<K,V> implements Map<K,V> {
         }
 
         // 添加数据失败时进行rehash
-        while(!putTargetMap(nodeArray, ((String)keyStr).getBytes(), ((String)valueStr).getBytes(), maxSize)) {
+        while(!putTargetMap(nodeArray, ((String)keyStr).getBytes(), valueByte, maxSize)) {
             rehash();
         }
 
@@ -395,10 +422,34 @@ public class LightMap<K,V> implements Map<K,V> {
                         // 判断key是否相同
                         if (isSameKey) {
 
-                            byte[] value = new byte[nodeArray[index * nodeLength + keyLength + 1]];
-                            System.arraycopy(nodeArray, index * nodeLength + keyLength + 2, value, 0, nodeArray[index * nodeLength + keyLength + 1]);
+                            if(type == 1) {
 
-                            return (V) new String(value);
+                                // value类型为String时
+                                byte[] value = new byte[nodeArray[index * nodeLength + keyLength + 1]];
+                                System.arraycopy(nodeArray, index * nodeLength + keyLength + 2, value, 0, nodeArray[index * nodeLength + keyLength + 1]);
+
+                                return (V) new String(value);
+                            } else if(type == 2) {
+
+                                // value类型为Integer时
+                                return (V) new Integer((nodeArray[index * nodeLength + keyLength + 2] & 0xff) |
+                                        ((nodeArray[index * nodeLength + keyLength + 3] & 0xff) << 8) |
+                                        ((nodeArray[index * nodeLength + keyLength + 4] & 0xff) << 16) |
+                                        ((nodeArray[index * nodeLength + keyLength + 5] & 0xff) << 24));
+
+                            } else if(type == 3) {
+
+                                // value类型为Long时
+                                return (V) new Long( (nodeArray[index * nodeLength + keyLength + 2] & 0xff) |
+                                        ((nodeArray[index * nodeLength + keyLength + 3] & 0xff) << 8) |
+                                        ((nodeArray[index * nodeLength + keyLength + 4] & 0xff) << 16) |
+                                        ((nodeArray[index * nodeLength + keyLength + 5] & 0xff) << 24) |
+                                        ((long)((nodeArray[index * nodeLength + keyLength + 6] & 0xff)) << 32) |
+                                        ((long)((nodeArray[index * nodeLength + keyLength + 7] & 0xff)) << 40) |
+                                        ((long)((nodeArray[index * nodeLength + keyLength + 8] & 0xff)) << 48) |
+                                        ((long)((nodeArray[index * nodeLength + keyLength + 9] & 0xff)) << 56));
+
+                            }
 
                         } else {
 
